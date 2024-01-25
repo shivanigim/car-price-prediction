@@ -1,0 +1,372 @@
+---
+title: "PAC"
+author: "Shivani Singh"
+format: html
+editor: visual
+---
+
+## Reading Data
+
+```{r}
+
+#scorindata = read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/scoringData.csv')
+
+data= read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/analysisData.csv')
+
+
+summary(data)
+nrow(data)
+```
+## Data Cleaning 
+
+###### checking for missing data
+```{r}
+
+
+apply(data,
+      MARGIN = 2,
+      FUN= function(data) sum(is.na(data)))
+#percentage of missing values
+percent_of_missing_data= apply(data,
+      MARGIN = 2, 
+      FUN = function(data) 100*sum(is.na(data))/(sum(is.na(data))+ sum(!is.na(data))))
+nrow(data)
+```
+
+###### removing the columns "owner_count" that has 49% missing values 
+```{r}
+df <- subset(data, select = -c(owner_count)) 
+
+```
+
+###### Impute missing values with median
+```{r}
+#| echo: false
+vars_to_impute <- c("highway_fuel_economy", "city_fuel_economy")
+
+# Impute missing values with median
+for (var in vars_to_impute) {
+  median_value <- median(df[[var]], na.rm = TRUE) # Calculate the median excluding NA values
+  df[[var]][is.na(df[[var]])] <- median_value # Replace NA values with the calculated median
+}
+
+# Now df contains imputed values for the specified columns using the median
+# check count of NAs in all columns
+apply(df,
+      MARGIN = 2,
+      FUN= function(df) sum(is.na(df)))
+nrow(df)
+```
+
+```{r}
+library(dplyr)
+data %>% group_by(owner_count) %>% summarise(count= n())
+
+```
+
+```{r}
+head(df)
+```
+
+## EDA
+
+```{r}
+hist(df$price)
+```
+
+```{r}
+#install.packages('moments')
+library(moments)
+
+#calculate skewness
+skewness(df$price)
+kurtosis(df$price)
+```
+
+This is a positively skewed data Kurtosis is 24 which is high
+
+```{r}
+numeric_data = select_if(df,is.numeric)
+cor(numeric_data,numeric_data$price)
+nrow(numeric_data)
+```
+
+######DROPPING THE NA Variables
+
+```{r}
+
+#numeric_data[apply(numeric_data, MARGIN = 1, function(x) any(!is.na(x))),]
+#numeric_data_cc=numeric_data[complete.cases(numeric_data),]
+```
+
+###### Working with categorical data 
+```{r}
+cat_data = select_if(df,is.character)
+cat_data$is_cpo=ifelse(cat_data$is_cpo=="","False",cat_data$is_cpo=="Not Certified") # null cpo means not certified
+
+nrow(cat_data)
+
+
+vec = c()
+for(col in colnames(cat_data))
+{
+  boole = cat_data[,col]==""
+  if(TRUE %in% boole)
+  {
+    vec = c(vec, col)
+  }
+}
+vec #All the columns that has special character ""
+class(vec)
+
+
+#Imputing "" with not reported so that we don't lose data
+cat_subset_with_special_char= cat_data[,c(vec)]
+cat_subset_with_special_char[cat_subset_with_special_char==""]="Not reported"
+cat_no_desc= select(cat_subset_with_special_char,-c(description))
+
+```
+
+```{r}
+cat_data2= cat_data[,!(names(cat_data) %in% vec)] #retrieving all the leftover categorical columns without ""
+merged_cat= cbind(cat_data2,cat_no_desc)
+
+```
+
+```{r}
+colnames(merged_cat)
+
+```
+
+```{r}
+#install.packages("stringr")
+library(stringr)
+library(readr)
+library(tidyverse)
+
+# Assuming df is your data frame and combined_column is the column containing "170 hp @ 5,600 RPM"
+merged_cat$power <- as.character(merged_cat$power)  # Ensure the column is treated as character
+
+# Clean the power column
+
+
+merged_cat <- merged_cat %>%
+  mutate(power_hp = str_extract(power, "\\d+"),
+         power_rpm = str_extract(power, "\\d+,\\d+")) %>%
+  mutate(power_hp = as.integer(power_hp),
+         power_rpm = as.integer(gsub(",", "", power_rpm)))
+
+head(merged_cat)
+
+# Clean the torque column
+
+merged_cat <- merged_cat %>%
+  mutate(torque_lbft = str_extract(torque, "\\d+"),
+         torque_rpm = str_extract(torque, "\\d+,\\d+")) %>%
+  mutate(torque_lbft = as.integer(torque_lbft),
+         torque_rpm = as.integer(gsub(",", "", torque_rpm)))
+
+
+
+
+# Printing the updated data frame
+
+head(merged_cat)
+
+merged_cat <- merged_cat %>% select(-torque)
+
+colnames(merged_cat) 
+
+
+
+
+
+
+```
+
+```{r}
+final_data=cbind(merged_cat,numeric_data)
+
+
+
+```
+
+### Cleaning the final data
+
+```{r}
+
+
+
+clean_final_data= final_data %>% na.omit()
+nrow(clean_final_data)
+
+```
+
+### Correlations check, removing highly correlated variables for numerical data
+
+```{r}
+library(caret)
+numeric_data_2 = select_if(clean_final_data,is.numeric)
+
+correlation_matrix= cor(numeric_data_2)
+correlation_matrix
+
+threshold<- 0.7
+highly_correlated <- findCorrelation(correlation_matrix, cutoff=threshold)
+
+numeric_data_2 <- numeric_data_2[, -highly_correlated]
+numeric_cols = names(numeric_data_2)
+
+```
+
+
+### Replacing less occurring variables "other" in categorical data
+
+```{r}
+# replace_less_frequent_categories <- function(column)
+# {
+#    category_counts <- table(column)
+#   less_frequent_categories <- names(category_counts[category_counts < 0.1 * length(column)])
+#   column_modified <- ifelse(column %in% less_frequent_categories, "other", as.character(column))
+#   return(column_modified)
+# }
+# character_data_modified <- as.data.frame(sapply(character_data_2,replace_less_frequent_categories))
+
+```
+
+### Target encoding on categorical data
+
+```{r}
+# Assuming clean_final_data is your data frame with cleaned columns (including categorical columns)
+# Replace "price" with your actual target variable name
+target <- clean_final_data$price
+
+# Extract the categorical columns that you want to target encode
+categorical_cols <- names(select_if(clean_final_data, is.character))
+
+# Define a function for target encoding
+source('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/Common_functions.R')
+
+encoding_dict = c()
+
+# Apply target encoding to each categorical column
+for (cat_col in categorical_cols) {
+  encoding_map <- tapply(target, clean_final_data[[cat_col]], mean)
+  clean_final_data[[cat_col]] <- encoding_map[clean_final_data[[cat_col]]]
+  encoding_dict[[cat_col]] = encoding_map
+}
+
+
+# Now clean_final_data contains the target-encoded categorical columns
+print("Target Encoded Data:")
+head(clean_final_data)
+
+
+```
+
+```{r}
+
+library(skimr)
+skim(clean_final_data)
+
+```
+
+## Model Training
+
+```{r}
+library(caret)
+
+set.seed(61710)
+train=clean_final_data
+
+library(forcats)
+
+```
+
+```{r}
+str(train)
+library(skimr)
+skim(train)
+
+head(train)
+```
+
+
+## Using Multiple Linear Regression
+```{r}
+#install.packages("caret")
+#install.packages("glmnet")
+library(caret)
+library(glmnet)
+
+# Remove 'price' column from the predictor variables (x)
+predictors <- subset(train, select = -c(price, id))
+
+set.seed(617)
+cv_lasso = cv.glmnet(x = as.matrix(predictors), 
+                     y = train$price, 
+                     alpha = 1,
+                     type.measure = 'mse')
+plot(cv_lasso)
+
+coef(cv_lasso, s = cv_lasso$lambda.1se) |>
+  round(4)
+
+
+selected_features <- rownames(coef(cv_lasso, s = cv_lasso$lambda.1se))[-1]  # Exclude intercept
+predictors_selected <- predictors[, selected_features]
+
+
+
+# Create a new data frame with the selected features
+selected_data <- cbind(price = train$price, predictors_selected)
+
+
+# xgbooost here!!!!!!
+
+# Assuming 'selected_data' is your data frame
+# #install.packages('xgboost')
+
+
+
+
+
+
+final_model=lm(price~., selected_data)
+
+
+# Save the final model as an RDS file
+saveRDS(final_model, file = "final_model.rds")
+
+# Assuming 'train' is your training data frame
+write.csv(train, file = "training_data.csv", row.names = FALSE)
+
+
+train_cols = names(train)
+
+```
+## Using XGBoost
+```{r}
+
+library(xgboost)
+# 
+# Convert selected_data to matrix (XGBoost requires a matrix)
+selected_data_matrix <- as.matrix(selected_data)
+
+# Assuming 'price' is your dependent variable
+# 'data' is a DMatrix object which is the format that XGBoost requires
+data <- xgb.DMatrix(data = selected_data_matrix, label = selected_data$price)
+# 
+# # Set up XGBoost parameters
+params <- list(
+  objective = "reg:squarederror",  # for regression tasks
+  eval_metric = "rmse"             # you can use other metrics as well
+)
+
+# Train the XGBoost model
+ final_model <- xgboost(data = data, params = params, nrounds = 100)
+
+# Print the final model
+print(final_model)
+
+```

@@ -1,0 +1,361 @@
+
+
+---
+title: "PAC"
+author: "Shivani Singh"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+
+
+
+
+```{r}
+
+sc_data = read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/scoringData.csv')
+
+
+
+
+
+
+
+
+
+```
+#sc_data= read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/analysissc_data.csv')
+
+```{r}
+summary(sc_data)
+head(sc_data)
+nrow(sc_data)
+#checking for missing sc_data
+
+apply(sc_data,
+      MARGIN = 2,
+      FUN= function(sc_data) sum(is.na(sc_data)))
+#percentage of missing values
+percent_of_missing_sc_data= apply(sc_data,
+      MARGIN = 2, 
+      FUN = function(sc_data) 100*sum(is.na(sc_data))/(sum(is.na(sc_data))+ sum(!is.na(sc_data))))
+nrow(sc_data)
+```
+
+```{r}
+sc_df=sc_data
+sc_df <- subset(sc_data, select = -c(owner_count)) #removing the columns "owner_count" that has 49% missing values 
+
+
+
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+# Assuming sc_df is your sc_dataframe
+# Specify the variables you want to impute
+sc_vars_to_impute <- c("highway_fuel_economy", "city_fuel_economy")
+
+# Impute missing values with median
+for (var in sc_vars_to_impute) {
+  sc_median_value <- median(sc_df[[var]], na.rm = TRUE) # Calculate the median excluding NA values
+  sc_df[[var]][is.na(sc_df[[var]])] <- median_value # Replace NA values with the calculated median
+}
+
+# Now sc_df contains imputed values for the specified columns using the median
+
+apply(sc_df,
+      MARGIN = 2,
+      FUN= function(sc_df) sum(is.na(sc_df)))
+nrow(sc_df)
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+library(dplyr)
+sc_data %>% group_by(owner_count) %>% summarise(count= n())
+
+```
+
+```{r}
+head(sc_df)
+```
+
+# EDA
+
+```{r}
+hist(sc_df$price)
+```
+
+```{r}
+install.packages('moments')
+library(moments)
+
+#calculate skewness
+skewness(sc_df$price)
+kurtosis(sc_df$price)
+```
+
+This is a positively skewed sc_data Kurtosis is 24 which is high
+
+```{r}
+numeric_sc_data = select_if(sc_df,is.numeric)
+cor(numeric_sc_data,numeric_sc_data$price)
+nrow(numeric_sc_data)
+```
+
+
+
+
+```{r}
+cat_sc_data = select_if(sc_df,is.character)
+#drop na values
+#cat_sc_data_cc=cat_sc_data[complete.cases(cat_sc_data),]
+
+cat_sc_data$is_cpo=ifelse(cat_sc_data$is_cpo=="","False",cat_sc_data$is_cpo=="Not Certified") # null cpo means not certified
+# cat_sc_data_cc[cat_sc_data_cc == ""] = NA #replace "" with NA to drop later
+# #Now dropping  Nan vaues 
+# cat_sc_data_clean= cat_sc_data_cc %>%    
+#              na.omit()
+
+#unique( cat_sc_data_clean$has_accidents)
+nrow(cat_sc_data)
+sec_vec= c()
+for(col in colnames(cat_sc_data))
+{
+  boole = cat_sc_data[,col]==""
+  if(TRUE %in% boole)
+  {
+    sec_vec= c(sec_vec, col)
+  }
+}
+sec_vec#All the columns that has special character ""
+class(sec_vec)
+
+
+#Imputing "" with not reported so that we don't lose sc_data
+cat_subset_with_special_char= cat_sc_data[,c(sec_vec)]
+cat_subset_with_special_char[cat_subset_with_special_char==""]="Not reported"
+cat_no_desc= select(cat_subset_with_special_char,-c(description))
+nrow(cat_no_desc)
+
+
+```
+
+
+
+```{r}
+cat_sc_data2= cat_sc_data[,!(names(cat_sc_data) %in% sec_vec)] #retrieving all the leftover categorical columns without ""
+sec_merged_cat= cbind(cat_sc_data2,cat_no_desc)
+nrow(sec_merged_cat)
+
+```
+
+```{r}
+```
+
+```{r}
+colnames(sec_merged_cat)
+head(sec_merged_cat)
+```
+
+```{r}
+install.packages("stringr")
+library(stringr)
+library(readr)
+library(tidyverse)
+
+# Assuming sc_df is your sc_data frame and combined_column is the column containing "170 hp @ 5,600 RPM"
+sec_merged_cat$power <- as.character(sec_merged_cat$power)  # Ensure the column is treated as character
+
+# Clean the power column
+
+
+sec_merged_cat<- sec_merged_cat%>%
+  mutate(power_hp = str_extract(power, "\\d+"),
+         power_rpm = str_extract(power, "\\d+,\\d+")) %>%
+  mutate(power_hp = as.integer(power_hp),
+         power_rpm = as.integer(gsub(",", "", power_rpm)))
+
+sec_merged_cat
+
+# Clean the torque column
+
+sec_merged_cat<- sec_merged_cat%>%
+  mutate(torque_lbft = str_extract(torque, "\\d+"),
+         torque_rpm = str_extract(torque, "\\d+,\\d+")) %>%
+  mutate(torque_lbft = as.integer(torque_lbft),
+         torque_rpm = as.integer(gsub(",", "", torque_rpm)))
+
+
+
+
+# Printing the updated sc_data frame
+
+print(sec_merged_cat)
+
+sec_merged_cat<- sec_merged_cat%>% -select(hp,rpm,torque)
+
+ncol(sec_merged_cat) 
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+final_sc_data=cbind(sec_merged_cat,numeric_sc_data)
+
+nrow(final_sc_data)
+clean_final_sc_data=final_sc_data
+```
+
+
+
+
+
+#One-hot encoding of categorical variables
+
+```{r}
+
+# Check the number of levels for each factor variable
+# sapply(character_sc_data_modified, function(x) nlevels(as.factor(x)))
+# head(character_sc_data_modified)
+# 
+# character_sc_data_modified= character_sc_data_modified %>% select(!c(model_name,exterior_color,interior_color,listed_date,trim_name,power,torque,major_options))
+# sc_df_filtered=character_sc_data_modified
+# 
+# 
+# 
+# # drop_single_level_categories <- function(column) {
+# #   if (nlevels(factor(column)) > 1) {
+# #     return(column)
+# #   } else {
+# #     return(NULL)
+# #   }
+# # }
+# 
+# 
+# # Print the modified sc_data frame
+# print(sc_df)
+# # Print the filtered sc_data frame
+# print(sc_df_filtered)
+# 
+# encoded_sc_data <- predict(dummyVars("~ .", data = sc_df_filtered, levelsOnly = TRUE), newdata = sc_df_filtered)
+# 
+# treated_sc_data=cbind(encoded_sc_data,numeric_sc_data_2)
+# 
+# nrow(treated_sc_data)
+
+
+
+```
+
+checking cols in training and scoring data
+```{r}
+test_data=clean_final_sc_data
+training_data_to_check_cols = read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/clean_final_data.csv')
+
+train_col = names(training_data_to_check_cols)
+
+test_col = names(test_data)
+
+setdiff(train_col, test_col)
+
+categorical_cols <- names(select_if(test_data, is.character))
+test_data_numeric = select_if(test_data,is.numeric)
+test_numeric_cols = names(test_data_numeric)
+# Define the target encoding function
+# source('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/Common_functions.R')
+
+# Assuming test_data is your test data frame with the same columns as clean_final_data
+# Apply target encoding to each categorical column in test data
+for (cat_col in categorical_cols) {
+  encoding_map = encoding_dict[[cat_col]]
+  test_data[[cat_col]] <- encoding_map[test_data[[cat_col]]]
+  avg = mean(test_data[[cat_col]], na.rm=T) 
+  test_data[is.na(test_data[[cat_col]]),cat_col] = avg
+}
+
+# replace NA by mean value from numeric cols
+
+for (num_col in test_numeric_cols) {
+  avg = mean(test_data[[num_col]], na.rm=T) 
+  test_data[is.na(test_data[[num_col]]),num_col] = avg
+}
+
+# Now test_data contains the target-encoded categorical columns
+print("Target Encoded Test Data:")
+print(test_data)
+
+
+# ## Find columns in df1 but not in df2
+# #columns_only_in_df1 <- setdiff(names(df1), names(df2))
+# columns_only_in_df1 <- setdiff(names(training_data_to_check_cols), names(treated_sc_data) )
+# 
+# 
+# create_dummy = function(missing_dummy_cols, df){
+#   for (i in 1:length(missing_dummy_cols)) {
+#     col = missing_dummy_cols[i]
+#     df[,eval(col)]=NA
+#   }
+#   
+# }
+
+```
+```{r}
+
+```
+
+
+
+
+```{r}
+# Load the saved model back into R
+loaded_model <- readRDS("final_model.rds")
+
+# Predict the 'price' using the loaded model
+predictions <- predict(loaded_model, newdata = test_data)
+
+
+# predictions for xgboost
+# Assuming 'test_data' is your test dataset
+# Convert test_data to matrix (XGBoost requires a matrix)
+# test_data_matrix <- as.matrix(test_data)
+# 
+# # Assuming 'loaded_model' is your trained XGBoost model
+# # 'dmatrix' is a DMatrix object, which is the format that XGBoost requires for prediction
+# dmatrix <- xgb.DMatrix(data = test_data_matrix)
+# 
+# # Make predictions
+# predictions <- predict(loaded_model, newdata = dmatrix)
+# 
+# 
+# 
+# # Combine 'id' and predictions into a data frame
+# predicted_data <- data.frame(id = treated_sc_data$id, price = predictions)
+
+
+# construct submission from predictions
+submissionFile = data.frame(id = treated_sc_data$id, price = predicted_data$price)
+nrow(submissionFile)
+write.csv(submissionFile, '/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/submission.csv',row.names = F)
+
+```
+
