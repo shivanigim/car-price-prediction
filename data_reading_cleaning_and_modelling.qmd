@@ -9,9 +9,9 @@ editor: visual
 
 ```{r}
 
-#scorindata = read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/scoringData.csv')
+#scorindata = read.csv('/Users/shivani/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/scoringData.csv')
 
-data= read.csv('/Users/pranaykhattri/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/analysisData.csv')
+data= read.csv('/Users/shivani/Downloads/Columbia_Coursework/First_Semester/Frameworks_and_Methods5200AdrianHeilbut/PAC/analysisData.csv')
 
 
 summary(data)
